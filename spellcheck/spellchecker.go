@@ -1,8 +1,7 @@
-package main
+package spellcheck
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -23,26 +22,25 @@ func readLines(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-func buildWordLexicon() map[string]int {
+// BuildWordLexicon builds a lexicon based on the words in the txt file.
+func BuildWordLexicon() map[string]int {
 	lines, err := readLines("big.txt")
 	if err != nil {
 		panic(err)
 	}
-
-	words := WordCount(lines)
+	words := wordCount(lines)
 	return words
 }
 
 func sum(input []int) int {
 	sum := 0
-
 	for i := range input {
 		sum += input[i]
 	}
 	return sum
 }
 
-func WordCount(ss []string) map[string]int {
+func wordCount(ss []string) map[string]int {
 	isAlpha := regexp.MustCompile(`^[A-Za-z]+$`).MatchString
 	wordmap := make(map[string]int)
 	for _, s := range ss {
@@ -65,15 +63,15 @@ func probability(word string, words map[string]int) float64 {
 	return float64(words[word]) / float64(N)
 }
 
-type Pair struct {
+type pair struct {
 	left, right string
 }
 
 func edits1(word string) []string {
 	letters := "abcdefghijklmnopqrstuvwxyz"
-	splits := make([]Pair, 0)
+	splits := make([]pair, 0)
 	for i := 0; i < len(word)+1; i++ {
-		splits = append(splits, Pair{word[:i], word[i:]})
+		splits = append(splits, pair{word[:i], word[i:]})
 	}
 
 	deletes := make([]string, 0)
@@ -108,67 +106,14 @@ func edits1(word string) []string {
 		}
 	}
 
-	final_slice := make([]string, 0)
-	final_slice = append(final_slice, deletes...)
-	final_slice = append(final_slice, transposes...)
-	final_slice = append(final_slice, replaces...)
-	final_slice = append(final_slice, inserts...)
+	finalSlice := make([]string, 0)
+	finalSlice = append(finalSlice, deletes...)
+	finalSlice = append(finalSlice, transposes...)
+	finalSlice = append(finalSlice, replaces...)
+	finalSlice = append(finalSlice, inserts...)
 
-	final_slice = removeDuplicates(final_slice)
-	return final_slice
-}
-
-func edits2(word string) []string {
-	final_slice := make([]string, 0)
-	for _, e1 := range edits1(word) {
-		for _, e2 := range edits1(e1) {
-			final_slice = append(final_slice, e2)
-		}
-	}
-	return final_slice
-}
-
-func candidates(word string, wordMap map[string]int) []string {
-	wordSlice := []string{word}
-	a := known(wordSlice, wordMap)
-	b := known(edits1(word), wordMap)
-	c := known(edits2(word), wordMap)
-	d := wordSlice
-
-	if len(a) > 0 {
-		return a
-	} else if len(b) > 0 {
-		return b
-	} else if len(c) > 0 {
-		return c
-	} else if len(d) > 0 {
-		return d
-	}
-	return nil
-}
-
-func known(words []string, wordMap map[string]int) []string {
-	final_slice := make([]string, 0)
-	for _, w := range words {
-		if _, ok := wordMap[w]; ok {
-			final_slice = append(final_slice, w)
-		}
-	}
-
-	final_slice = removeDuplicates(final_slice)
-	return final_slice
-
-}
-
-func correction(word string, wordMap map[string]int) string {
-	var finalWord = ""
-	var highestProb = 0.0
-	for _, w := range candidates(word, wordMap) {
-		if p := probability(w, wordMap); p > highestProb {
-			finalWord = w
-		}
-	}
-	return finalWord
+	finalSlice = removeDuplicates(finalSlice)
+	return finalSlice
 }
 
 func removeDuplicates(elements []string) []string {
@@ -190,7 +135,64 @@ func removeDuplicates(elements []string) []string {
 	return result
 }
 
-func main() {
-	words := buildWordLexicon()
-	fmt.Println(correction("brd", words))
+func edits2(word string) []string {
+	finalSlice := make([]string, 0)
+	for _, e1 := range edits1(word) {
+		for _, e2 := range edits1(e1) {
+			finalSlice = append(finalSlice, e2)
+		}
+	}
+	return finalSlice
+}
+
+// Candidates returns possible candidates of the misspellt word
+func Candidates(word string, wordMap map[string]int) []string {
+	wordSlice := []string{word}
+	a := Known(wordSlice, wordMap)
+	b := Known(edits1(word), wordMap)
+	c := Known(edits2(word), wordMap)
+	d := wordSlice
+
+	if len(a) > 0 {
+		return a
+	} else if len(b) > 0 {
+		return b
+	} else if len(c) > 0 {
+		return c
+	} else if len(d) > 0 {
+		return d
+	}
+	return nil
+}
+
+// Known returns a slice of known words
+func Known(words []string, wordMap map[string]int) []string {
+	finalSlice := make([]string, 0)
+	for _, w := range words {
+		if _, ok := wordMap[w]; ok && !contains(finalSlice, w) {
+			finalSlice = append(finalSlice, w)
+		}
+	}
+	return finalSlice
+
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+// Correction returns the word with the highest probability of being the right word
+func Correction(word string, wordMap map[string]int) (finalWord string) {
+	var highestProb = 0.0
+	for _, w := range Candidates(word, wordMap) {
+		if p := probability(w, wordMap); p > highestProb {
+			finalWord = w
+		}
+	}
+	return
 }
